@@ -1,0 +1,328 @@
+data = pd.read_csv('wine_data.csv')
+data.head()
+
+data.hist(figsize=(12,15))
+plt.tight_layout()
+plt.show()
+
+data.describe()
+
+fig, axs = plt.subplots(4,3, figsize=(12,15))
+
+sns.boxplot(data=data['fixed acidity'], ax=axs[0, 0])
+axs[0, 0].set_xlabel('Fixed Acidity')
+
+sns.boxplot(data=data['volatile acidity'], ax=axs[0, 1])
+axs[0, 1].set_xlabel('Volatile Acidity')
+
+sns.boxplot(data=data['citric acid'], ax=axs[0, 2])
+axs[0, 2].set_xlabel('Citric Acid')
+
+sns.boxplot(data=data['residual sugar'], ax=axs[1, 0])
+axs[1, 0].set_xlabel('Residual Sugar')
+
+sns.boxplot(data=data['chlorides'], ax=axs[1, 1])
+axs[1, 1].set_xlabel('Chlorides')
+
+sns.boxplot(data=data['free sulfur dioxide'], ax=axs[1, 2])
+axs[1, 1].set_xlabel('Free Sulfur Dioxide')
+
+sns.boxplot(data=data['total sulfur dioxide'], ax=axs[2, 0])
+axs[2, 0].set_xlabel('Total Sulfur Dioxide')
+
+sns.boxplot(data=data['density'], ax=axs[2, 1])
+axs[2, 1].set_xlabel('Density')
+
+sns.boxplot(data=data['pH'], ax=axs[2, 2])
+axs[2, 2].set_xlabel('pH')
+
+sns.boxplot(data=data['sulphates'], ax=axs[3, 0])
+axs[3, 0].set_xlabel('Sulphates')
+
+sns.boxplot(data=data['alcohol'], ax=axs[3, 1])
+axs[3, 1].set_xlabel('Alcohol')
+
+sns.boxplot(data=data['quality'], ax=axs[3, 2])
+axs[3, 2].set_xlabel('Quality')
+
+plt.tight_layout()
+plt.show()
+
+feature = 'quality'
+lower_Q, upper_Q = np.percentile(data[feature], q=25), np.percentile(data[feature], q=75) 
+outlier_range = 1.5 * (upper_Q - lower_Q)
+num_data = data[((data['quality'] < (lower_Q - outlier_range)) | (data['quality'] > (upper_Q + outlier_range)))].shape[0]
+data = data[~((data['quality'] < (lower_Q - outlier_range)) | (data['quality'] > (upper_Q + outlier_range)))].reset_index(drop = True)
+
+print('Outliers removed: ', num_data)
+
+data["quality"] = 1*(data["quality"]>5)
+data[["quality"]].head()
+
+number_of_wines = data.shape[0]
+
+good_wine = data.loc[(data['quality'] == 1)] 
+num_good_wine = good_wine.shape[0]
+
+poor_wine = data.loc[(data['quality'] == 0)]
+num_poor_wine = poor_wine.shape[0]
+
+good_wine_per = num_good_wine*100/number_of_wines
+
+print('Total number of wine: {}'.format(number_of_wines))
+print('Good wines with rating 6+: {}'.format(num_good_wine))
+print('Poor wines with rating <5: {}'.format(num_poor_wine))
+print('Percentage of good wines: {:.2f}%'.format(good_wine_per))
+
+plt.figure(figsize = (10,6))
+labels = 'Good Wines', 'Poor Wines'
+plt.title('Wine Quality Proportions')
+sizes = [num_good_wine, num_poor_wine]
+colors = ['green', 'red']
+
+plt.pie(sizes,  labels=labels, colors=colors,autopct='%1.1f%%', startangle=90)
+plt.axis('equal')
+plt.show()
+
+corr_matrix = data.corr()
+
+corr_table = data.corr(method='pearson')
+
+corr_table
+
+quality_corr = corr_matrix['quality']
+
+plt.figure(figsize=(10,6))
+sns.heatmap(quality_corr.to_frame().T, cmap='Blues', annot=True)
+plt.title('Correlation Matrix')
+plt.show()
+
+data['alcohol sulphate interaction'] = data['alcohol'] * data['sulphates']
+data['sugar acidity balance'] = data['residual sugar']/data['pH']
+data['acidity alcohol interaction'] = data['fixed acidity'] * data['alcohol']
+  
+data.head()
+
+updated_corr_matrix = data.corr()
+
+updated_quality_corr = updated_corr_matrix['quality']
+
+plt.figure(figsize=(10,6))
+sns.heatmap(updated_quality_corr.to_frame().T, cmap='Blues', annot=True)
+plt.title('Correlation Matrix')
+plt.show()
+
+updated_quality_corr
+
+initial_features = data[['fixed acidity','volatile acidity','citric acid','residual sugar',
+                         'chlorides','free sulfur dioxide','total sulfur dioxide','density',
+                         'pH','sulphates','alcohol']]
+with_added_features = data.drop('quality',axis=1)
+
+X = initial_features
+y = data['quality']
+
+X_train, X_val, y_train, y_val = train_test_split(X,y, test_size=0.2, random_state=42)
+
+rf_model = RandomForestClassifier()
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+accuracy_scores = []
+
+for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
+    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+    
+    rf_model.fit(X_train, y_train)
+    
+    y_pred = rf_model.predict(X_val)
+
+    accuracy = accuracy_score(y_val, y_pred)
+
+accuracy_scores.append(accuracy)
+overall_accuracy = sum(accuracy_scores)/len(accuracy_scores)
+
+print(f'Random Forest Classifier w/ Initial Features Overall Accuracy Score:{overall_accuracy}')
+
+X = with_added_features
+y = data['quality']
+
+X_train, X_val, y_train, y_val = train_test_split(X,y, test_size=0.2, random_state=42)
+
+rf_model = RandomForestClassifier()
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+accuracy_scores = []
+
+for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
+    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+    
+    rf_model.fit(X_train, y_train)
+    
+    y_pred = rf_model.predict(X_val)
+
+    accuracy = accuracy_score(y_val, y_pred)
+
+accuracy_scores.append(accuracy)
+overall_accuracy = sum(accuracy_scores)/len(accuracy_scores)
+
+print(f'Random Forest Classifier w/ Added Features Overall Accuracy Score:{overall_accuracy}')
+
+X = initial_features
+y = data['quality']
+
+X_train, X_val, y_train, y_val = train_test_split(X,y, test_size=0.2, random_state=42)
+
+lr_model = LogisticRegression()
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+accuracy_scores = []
+
+for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
+    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+    
+    lr_model.fit(X_train, y_train)
+    
+    y_pred = lr_model.predict(X_val)
+
+    accuracy = accuracy_score(y_val, y_pred)
+
+accuracy_scores.append(accuracy)
+overall_accuracy = sum(accuracy_scores)/len(accuracy_scores)
+
+print(f'Logistic Regression w/ Initial Features Overall Accuracy Score:{overall_accuracy}')
+
+X = with_added_features
+y = data['quality']
+
+X_train, X_val, y_train, y_val = train_test_split(X,y, test_size=0.2, random_state=42)
+
+lr_model = LogisticRegression()
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+accuracy_scores = []
+
+for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
+    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+    
+    lr_model.fit(X_train, y_train)
+    
+    y_pred = lr_model.predict(X_val)
+
+    accuracy = accuracy_score(y_val, y_pred)
+
+accuracy_scores.append(accuracy)
+overall_accuracy = sum(accuracy_scores)/len(accuracy_scores)
+
+print(f'Logistic Regression w/ Added Features Overall Accuracy Score:{overall_accuracy}')
+
+X = initial_features
+y = data['quality']
+
+X_train, X_val, y_train, y_val = train_test_split(X,y, test_size=0.2, random_state=42)
+
+gbt_model = GradientBoostingClassifier()
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+accuracy_scores = []
+
+for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
+    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+    
+    gbt_model.fit(X_train, y_train)
+    
+    y_pred = gbt_model.predict(X_val)
+
+    accuracy = accuracy_score(y_val, y_pred)
+
+accuracy_scores.append(accuracy)
+overall_accuracy = sum(accuracy_scores)/len(accuracy_scores)
+
+print(f'Gradient Boosting Trees w/ Initial Features Overall Accuracy Score:{overall_accuracy}')
+
+X = with_added_features
+y = data['quality']
+
+X_train, X_val, y_train, y_val = train_test_split(X,y, test_size=0.2, random_state=42)
+
+gbt_model = GradientBoostingClassifier()
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+accuracy_scores = []
+
+for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
+    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+    
+    gbt_model.fit(X_train, y_train)
+    
+    y_pred = gbt_model.predict(X_val)
+
+    accuracy = accuracy_score(y_val, y_pred)
+
+accuracy_scores.append(accuracy)
+overall_accuracy = sum(accuracy_scores)/len(accuracy_scores)
+
+print(f'Gradient Boosting Trees w/ Added Features Overall Accuracy Score:{overall_accuracy}')
+
+X = initial_features
+y = data['quality']
+
+X_train, X_val, y_train, y_val = train_test_split(X,y, test_size=0.2, random_state=42)
+
+lda_model = LinearDiscriminantAnalysis()
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+accuracy_scores = []
+
+for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
+    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+    
+    lda_model.fit(X_train, y_train)
+    
+    y_pred = lda_model.predict(X_val)
+
+    accuracy = accuracy_score(y_val, y_pred)
+
+accuracy_scores.append(accuracy)
+overall_accuracy = sum(accuracy_scores)/len(accuracy_scores)
+
+print(f'Linear Discriminant Analysis w/ Initial Features Overall Accuracy Score:{overall_accuracy}')
+
+X = with_added_features
+y = data['quality']
+
+X_train, X_val, y_train, y_val = train_test_split(X,y, test_size=0.2, random_state=42)
+
+lda_model = LinearDiscriminantAnalysis()
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+accuracy_scores = []
+
+for fold, (train_index, val_index) in enumerate(kf.split(X), 1):
+    X_train, X_val = X.iloc[train_index], X.iloc[val_index]
+    y_train, y_val = y.iloc[train_index], y.iloc[val_index]
+    
+    lda_model.fit(X_train, y_train)
+    
+    y_pred = lda_model.predict(X_val)
+
+    accuracy = accuracy_score(y_val, y_pred)
+
+accuracy_scores.append(accuracy)
+overall_accuracy = sum(accuracy_scores)/len(accuracy_scores)
+
+print(f'Linear Discriminant Analysis w/ Added Features Overall Accuracy Score:{overall_accuracy}')
